@@ -1,11 +1,14 @@
 const { Client } = require('eris');
 const Database = require('better-sqlite3');
 const db = new Database('star.db');
-const client = new Client('token');
+const config = require('./config.json');
+const client = new Client(config.token);
+
+db.pragma('journal_mode = WAL');
 
 db.prepare('CREATE TABLE IF NOT EXISTS starids (msgid TEXT PRIMARY KEY, starid TEXT NOT NULL)').run();
 
-client.on('messageReactionAdd', async (message, emoji, user) => {
+client.on('messageReactionAdd', async (message, emoji) => {
   if (message.channel.type !== 0 || emoji.name !== '⭐') return;
 
   const channel = client.getChannel(message.channel.id);
@@ -24,7 +27,7 @@ client.on('messageReactionAdd', async (message, emoji, user) => {
     if (!stars) return;
 
     const starMsg = await starboard.createMessage({
-      content: `${stars} ⭐ - <#${msg.channel.id}>`,
+      content: `⭐ **${stars}** - <#${msg.channel.id}>`,
       embed: {
         color: 0xFDD744,
         author: {
@@ -32,6 +35,12 @@ client.on('messageReactionAdd', async (message, emoji, user) => {
           icon_url: msg.author.avatarURL
         },
         description: msg.content,
+        fields: [
+          {
+            name: 'Jump to message',
+            value: `[Click here](https://discordapp.com/channels/${msg.channel.guild.id}/${msg.channel.id}/${msg.id})`
+          }
+        ],
         timestamp: new Date(),
         image: resolveAttachment(msg)
       }
@@ -41,11 +50,11 @@ client.on('messageReactionAdd', async (message, emoji, user) => {
   } else {
     const starMessage = await starboard.getMessage(starId);
     if (!starMessage) return;
-    await starMessage.edit(`${stars} ⭐ - <#${msg.channel.id}>`);
+    await starMessage.edit(`⭐ **${stars}** - <#${msg.channel.id}>`);
   }
 });
 
-client.on('messageReactionRemove', async (message, emoji, user) => {
+client.on('messageReactionRemove', async (message, emoji) => {
   if (message.channel.type !== 0 || emoji.name !== '⭐') return;
 
   const channel = client.getChannel(message.channel.id);
@@ -75,18 +84,14 @@ client.on('messageReactionRemove', async (message, emoji, user) => {
   await starMessage.edit(`${stars} ⭐ - <#${msg.channel.id}>`);
 });
 
-function getMessageFromDatabase(msgid) {
+const getMessageFromDatabase = (msgid) => {
   return (db.prepare('SELECT * FROM starids WHERE msgid = ?').get(msgid) || {}).starid;
 }
 
-function resolveAttachment(msg) {
-  if (msg.attachments.length > 0 && msg.attachments[0].width) {
-    return msg.attachments[0];
-  } else if (msg.embeds.length > 0 && msg.embeds[0].type === 'image') {
-    return msg.embeds[0].image || msg.embeds[0].thumbnail;
-  } else {
-    return null;
-  }
+const resolveAttachment = (msg) => {
+  if (msg.attachments.length > 0 && msg.attachments[0].width) return msg.attachments[0];
+  else if (msg.embeds.length > 0 && msg.embeds[0].type === 'image') return msg.embeds[0].image || msg.embeds[0].thumbnail;
+  else return null;
 }
 
 client.connect();
